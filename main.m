@@ -189,29 +189,28 @@ NSString * getEmptyKeychainItemString(CFTypeRef kSecClassType) {
 }
 
 static const char *printAccessible(NSString *a) {
+#	define P(x) { (__bridge NSString*)x, "##x##" }
+	typedef struct {
+		NSString *key;
+		const char *name;
+	} Attr;
+	Attr ids[8] = {
+		P(kSecAttrAccessibleAfterFirstUnlock),
+		P(kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly),
+		P(kSecAttrAccessibleAlways),
+		P(kSecAttrAccessibleAlwaysThisDeviceOnly),
+		P(kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly),
+		P(kSecAttrAccessibleWhenUnlocked),
+		P(kSecAttrAccessibleWhenUnlockedThisDeviceOnly),
+		P(NULL)
+	};
 	if (!a) {
 		return "";
 	}
-	if ([a isEqual: @"ck"]) {
-		return "kSecAttrAccessibleAfterFirstUnlock";
-	}
-	if ([a isEqual: @"cku"]) {
-		return "kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly";
-	}
-	if ([a isEqual: @"dk"]) {
-		return "kSecAttrAccessibleAlways";
-	}
-	if ([a isEqual: @"dku"]) {
-		return "kSecAttrAccessibleAlwaysThisDeviceOnly";
-	}
-	if ([a isEqual: @"akpu"]) {
-		return "kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly";
-	}
-	if ([a isEqual: @"ak"]) {
-		return "kSecAttrAccessibleWhenUnlocked";
-	}
-	if ([a isEqual: @"aku"]) {
-		return "kSecAttrAccessibleWhenUnlockedThisDeviceOnly";
+	for (int i = 0; ids[i].name; i++) {
+		if ([a isEqual: ids[i].key]) {
+			return ids[i].name;
+		}
 	}
 	return [a UTF8String];
 }
@@ -256,7 +255,6 @@ void printCertificate(NSDictionary *certificateItem) {
 	printToStdOut(@"Serial Number: %@\n", [certificateItem objectForKey:(id)kSecAttrSerialNumber]);
 	printToStdOut(@"Subject Key ID: %@\n", [certificateItem objectForKey:(id)kSecAttrSubjectKeyID]);
 	printToStdOut(@"Subject Key Hash: %@\n\n", [certificateItem objectForKey:(id)kSecAttrPublicKeyHash]);
-	
 }
 
 void printKey(NSDictionary *keyItem) {
