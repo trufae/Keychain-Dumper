@@ -188,12 +188,41 @@ NSString * getEmptyKeychainItemString(CFTypeRef kSecClassType) {
 	
 }
 
+static const char *printAccessible(NSString *a) {
+	if (!a) {
+		return "";
+	}
+	if ([a isEqual: @"ck"]) {
+		return "kSecAttrAccessibleAfterFirstUnlock";
+	}
+	if ([a isEqual: @"cku"]) {
+		return "kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly";
+	}
+	if ([a isEqual: @"dk"]) {
+		return "kSecAttrAccessibleAlways";
+	}
+	if ([a isEqual: @"dku"]) {
+		return "kSecAttrAccessibleAlwaysThisDeviceOnly";
+	}
+	if ([a isEqual: @"akpu"]) {
+		return "kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly";
+	}
+	if ([a isEqual: @"ak"]) {
+		return "kSecAttrAccessibleWhenUnlocked";
+	}
+	if ([a isEqual: @"aku"]) {
+		return "kSecAttrAccessibleWhenUnlockedThisDeviceOnly";
+	}
+	return [a UTF8String];
+}
+
 void printGenericPassword(NSDictionary *passwordItem) {
 	printToStdOut(@"Generic Password\n");
 	printToStdOut(@"----------------\n");
 	printToStdOut(@"Service: %@\n", [passwordItem objectForKey:(id)kSecAttrService]);
 	printToStdOut(@"Account: %@\n", [passwordItem objectForKey:(id)kSecAttrAccount]);
 	printToStdOut(@"Entitlement Group: %@\n", [passwordItem objectForKey:(id)kSecAttrAccessGroup]);
+	printToStdOut(@"Accessible: %s\n", printAccessible([passwordItem objectForKey:(id)kSecAttrAccessible]));
 	printToStdOut(@"Label: %@\n", [passwordItem objectForKey:(id)kSecAttrLabel]);
 	printToStdOut(@"Generic Field: %@\n", [[passwordItem objectForKey:(id)kSecAttrGeneric] description]);
 	NSData* passwordData = [passwordItem objectForKey:(id)kSecValueData];
@@ -206,11 +235,11 @@ void printInternetPassword(NSDictionary *passwordItem) {
 	printToStdOut(@"Server: %@\n", [passwordItem objectForKey:(id)kSecAttrServer]);
 	printToStdOut(@"Account: %@\n", [passwordItem objectForKey:(id)kSecAttrAccount]);
 	printToStdOut(@"Entitlement Group: %@\n", [passwordItem objectForKey:(id)kSecAttrAccessGroup]);
+	printToStdOut(@"Accessible: %@\n", [passwordItem objectForKey:(id)kSecAttrAccessible]);
 	printToStdOut(@"Label: %@\n", [passwordItem objectForKey:(id)kSecAttrLabel]);
 	NSData* passwordData = [passwordItem objectForKey:(id)kSecValueData];
 	printToStdOut(@"Keychain Data: %@\n\n", [[NSString alloc] initWithData:passwordData encoding:NSUTF8StringEncoding]);
 }
-
 
 void printCertificate(NSDictionary *certificateItem) {
 	SecCertificateRef certificate = (SecCertificateRef)[certificateItem objectForKey:(id)kSecValueRef];
@@ -222,6 +251,7 @@ void printCertificate(NSDictionary *certificateItem) {
 	printToStdOut(@"Summary: %@\n", (NSString *)summary);
 	CFRelease(summary);
 	printToStdOut(@"Entitlement Group: %@\n", [certificateItem objectForKey:(id)kSecAttrAccessGroup]);
+	printToStdOut(@"Accessible: %s\n", printAccessible([certificateItem objectForKey:(id)kSecAttrAccessible]));
 	printToStdOut(@"Label: %@\n", [certificateItem objectForKey:(id)kSecAttrLabel]);
 	printToStdOut(@"Serial Number: %@\n", [certificateItem objectForKey:(id)kSecAttrSerialNumber]);
 	printToStdOut(@"Subject Key ID: %@\n", [certificateItem objectForKey:(id)kSecAttrSubjectKeyID]);
@@ -249,6 +279,7 @@ void printKey(NSDictionary *keyItem) {
 	printToStdOut(@"Label: %@\n", [keyItem objectForKey:(id)kSecAttrLabel]);
 	printToStdOut(@"Application Label: %@\n", [keyItem objectForKey:(id)kSecAttrApplicationLabel]);
 	printToStdOut(@"Key Class: %@\n", keyClass);
+	printToStdOut(@"Accessible: %s\n", printAccessible([keyItem objectForKey:(id)kSecAttrAccessible]));
 	printToStdOut(@"Permanent Key: %@\n", CFBooleanGetValue((CFBooleanRef)[keyItem objectForKey:(id)kSecAttrIsPermanent]) == true ? @"True" : @"False");
 	printToStdOut(@"Key Size: %@\n", [keyItem objectForKey:(id)kSecAttrKeySizeInBits]);
 	printToStdOut(@"Effective Key Size: %@\n", [keyItem objectForKey:(id)kSecAttrEffectiveKeySize]);
