@@ -185,11 +185,10 @@ NSString * getEmptyKeychainItemString(CFTypeRef kSecClassType) {
 	else {
 		return @"Unknown Security Class\n";
 	}
-	
 }
 
 static const char *printAccessible(NSString *a) {
-#	define P(x) { (__bridge NSString*)x, "##x##" }
+#	define P(x) { (__bridge NSString*)x, #x }
 	typedef struct {
 		NSString *key;
 		const char *name;
