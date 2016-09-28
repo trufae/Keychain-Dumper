@@ -1,5 +1,6 @@
 /* 
  * Copyright (c) 2011, Neohapsis, Inc.
+ * Copyright (c) 2016, pancake@nowsecure.com - add Accessible attribute and JSON output
  * All rights reserved.
  *
  * Implementation by Patrick Toomey
@@ -32,6 +33,9 @@
 #import <Security/Security.h>
 #import "sqlite3.h"
 
+static bool useJSON = false;
+static bool isFirst = true;
+
 void printToStdOut(NSString *format, ...) {
     va_list args;
     va_start(args, format);
@@ -48,6 +52,7 @@ void printUsage() {
 	printToStdOut(@"-e: Dump Entitlements\n");
 	printToStdOut(@"-g: Dump Generic Passwords\n");
 	printToStdOut(@"-n: Dump Internet Passwords\n");
+	printToStdOut(@"-j: Output in JSON\n");
 	printToStdOut(@"-i: Dump Identities\n");
 	printToStdOut(@"-c: Dump Certificates\n");
 	printToStdOut(@"-k: Dump Keys\n");
@@ -105,7 +110,7 @@ NSMutableArray *getCommandLineOptions(int argc, char **argv) {
 		[arguments addObject:(id)kSecClassInternetPassword];
 		return [arguments autorelease];
 	}
-	while ((argument = getopt (argc, argv, "aegnickh")) != -1) {
+	while ((argument = getopt (argc, argv, "aegnickhj")) != -1) {
 		switch (argument) {
 			case 'a':
 				[arguments addObject:(id)kSecClassGenericPassword];
@@ -127,6 +132,11 @@ NSMutableArray *getCommandLineOptions(int argc, char **argv) {
 			case 'i':
 				[arguments addObject:(id)kSecClassIdentity];
 				break;
+			case 'j':
+				[arguments addObject:(id)kSecClassGenericPassword];
+				[arguments addObject:(id)kSecClassInternetPassword];
+				useJSON = true;
+				break;
 			case 'c':
 				[arguments addObject:(id)kSecClassCertificate];
 				break;
@@ -137,15 +147,15 @@ NSMutableArray *getCommandLineOptions(int argc, char **argv) {
 				printUsage();
 				break;
 			case '?':
-			    printUsage();
-			 	exit(EXIT_FAILURE);
+				printUsage();
+				exit(EXIT_FAILURE);
 			default:
+				fprintf (stderr, "Invalid argument -%c\n", (char)argument);
 				continue;
 		}
 	}
 
 	return [arguments autorelease];
-
 }
 
 NSArray * getKeychainObjectsForSecClass(CFTypeRef kSecClassType) {
@@ -214,17 +224,60 @@ static const char *printAccessible(NSString *a) {
 	return [a UTF8String];
 }
 
+static NSString* B64(NSString *aString) {
+	if (!aString) {
+		return @"(null)";
+	}
+	NSData *nsdata = [aString dataUsingEncoding:NSUTF8StringEncoding];
+	NSString *base64Encoded = [nsdata base64EncodedStringWithOptions:0];
+	return base64Encoded;
+}
+
 void printGenericPassword(NSDictionary *passwordItem) {
-	printToStdOut(@"Generic Password\n");
-	printToStdOut(@"----------------\n");
-	printToStdOut(@"Service: %@\n", [passwordItem objectForKey:(id)kSecAttrService]);
-	printToStdOut(@"Account: %@\n", [passwordItem objectForKey:(id)kSecAttrAccount]);
-	printToStdOut(@"Entitlement Group: %@\n", [passwordItem objectForKey:(id)kSecAttrAccessGroup]);
-	printToStdOut(@"Accessible: %s\n", printAccessible([passwordItem objectForKey:(id)kSecAttrAccessible]));
-	printToStdOut(@"Label: %@\n", [passwordItem objectForKey:(id)kSecAttrLabel]);
-	printToStdOut(@"Generic Field: %@\n", [[passwordItem objectForKey:(id)kSecAttrGeneric] description]);
-	NSData* passwordData = [passwordItem objectForKey:(id)kSecValueData];
-	printToStdOut(@"Keychain Data: %@\n\n", [[NSString alloc] initWithData:passwordData encoding:NSUTF8StringEncoding]);
+	if (useJSON) {
+		NSData* passwordData = [passwordItem objectForKey:(id)kSecValueData];
+		if (isFirst) {
+			isFirst = false;
+		} else {
+			printToStdOut(@",");
+		}
+		printToStdOut(@"{"
+			"\"service\":\"%@\","
+			"\"account\":\"%@\","
+			"\"group\":\"%@\","
+			"\"accessible\":\"%s\","
+			"\"label\":\"%@\","
+			"\"generic\":\"%@\","
+			"\"data\":\"%@\"}",
+			([passwordItem objectForKey:(id)kSecAttrService]),
+			([passwordItem objectForKey:(id)kSecAttrAccount]),
+			([passwordItem objectForKey:(id)kSecAttrAccessGroup]),
+			printAccessible([passwordItem objectForKey:(id)kSecAttrAccessible]),
+			([passwordItem objectForKey:(id)kSecAttrLabel]),
+			([[passwordItem objectForKey:(id)kSecAttrGeneric] description]),
+			B64(([[NSString alloc] initWithData:passwordData encoding:NSUTF8StringEncoding]))
+		);
+	} else {
+		printToStdOut(@"Generic Password\n");
+		printToStdOut(@"----------------\n");
+		printToStdOut(@"Service: %@\n", [passwordItem objectForKey:(id)kSecAttrService]);
+		printToStdOut(@"Account: %@\n", [passwordItem objectForKey:(id)kSecAttrAccount]);
+		printToStdOut(@"Entitlement Group: %@\n", [passwordItem objectForKey:(id)kSecAttrAccessGroup]);
+		printToStdOut(@"Accessible: %s\n", printAccessible([passwordItem objectForKey:(id)kSecAttrAccessible]));
+		NSString *label = [passwordItem objectForKey:(id)kSecAttrLabel];
+		if (label != NULL) {
+			printToStdOut(@"Label: %@\n", label);
+		}
+		printToStdOut(@"Generic Field: %@\n", [[passwordItem objectForKey:(id)kSecAttrGeneric] description]);
+		NSData* passwordData = [passwordItem objectForKey:(id)kSecValueData];
+		if (passwordData) {
+			NSString *data = [[NSString alloc] initWithData:passwordData encoding:NSUTF8StringEncoding];
+			if (data) {
+				printToStdOut(@"Keychain Data: %@\n", data);
+			}
+		}
+		printToStdOut(@"\n");
+	}
 }
 
 void printInternetPassword(NSDictionary *passwordItem) {
@@ -234,9 +287,14 @@ void printInternetPassword(NSDictionary *passwordItem) {
 	printToStdOut(@"Account: %@\n", [passwordItem objectForKey:(id)kSecAttrAccount]);
 	printToStdOut(@"Entitlement Group: %@\n", [passwordItem objectForKey:(id)kSecAttrAccessGroup]);
 	printToStdOut(@"Accessible: %@\n", [passwordItem objectForKey:(id)kSecAttrAccessible]);
-	printToStdOut(@"Label: %@\n", [passwordItem objectForKey:(id)kSecAttrLabel]);
+	NSString *label = [passwordItem objectForKey:(id)kSecAttrLabel];
+	if (label) {
+		printToStdOut(@"Label: %@\n", label);
+	}
 	NSData* passwordData = [passwordItem objectForKey:(id)kSecValueData];
-	printToStdOut(@"Keychain Data: %@\n\n", [[NSString alloc] initWithData:passwordData encoding:NSUTF8StringEncoding]);
+	if (passwordData) {
+		printToStdOut(@"Keychain Data: %@\n\n", [[NSString alloc] initWithData:passwordData encoding:NSUTF8StringEncoding]);
+	}
 }
 
 void printCertificate(NSDictionary *certificateItem) {
@@ -306,7 +364,9 @@ void printIdentity(NSDictionary *identityItem) {
 
 void printResultsForSecClass(NSArray *keychainItems, CFTypeRef kSecClassType) {
 	if (keychainItems == nil) {
-		printToStdOut(getEmptyKeychainItemString(kSecClassType));
+		if (!useJSON) {
+			printToStdOut(getEmptyKeychainItemString(kSecClassType));
+		}
 		return;
 	}
 
@@ -328,12 +388,11 @@ void printResultsForSecClass(NSArray *keychainItems, CFTypeRef kSecClassType) {
 			printKey(keychainItem);
 		}
 	}
-	return;
 }
 
 int main(int argc, char **argv) 
 {
-	id pool=[NSAutoreleasePool new];
+	id pool = [NSAutoreleasePool new];
 	NSArray* arguments;
 	arguments = getCommandLineOptions(argc, argv);
 	NSArray *passwordItems;	
@@ -342,11 +401,17 @@ int main(int argc, char **argv)
 		exit(EXIT_SUCCESS);
 	}
 	
+	if (useJSON) {
+		printToStdOut(@"[");
+	}
 	NSArray *keychainItems = nil;
 	for (id kSecClassType in (NSArray *) arguments) {
 		keychainItems = getKeychainObjectsForSecClass((CFTypeRef)kSecClassType);
 		printResultsForSecClass(keychainItems, (CFTypeRef)kSecClassType);
 		[keychainItems release];	
+	}
+	if (useJSON) {
+		printToStdOut(@"]\n");
 	}
     
 	[pool drain];
